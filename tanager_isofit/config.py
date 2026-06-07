@@ -31,7 +31,9 @@ TANAGER_WAVELENGTH_MAX_NM = 2500  # Maximum wavelength (nm)
 
 # Estimated spectral properties (fallback if not in HDF5 metadata)
 # Approximate wavelength spacing: (2500-400)/426 ≈ 4.93 nm
-TANAGER_WAVELENGTH_SPACING_NM = (TANAGER_WAVELENGTH_MAX_NM - TANAGER_WAVELENGTH_MIN_NM) / TANAGER_NUM_BANDS
+TANAGER_WAVELENGTH_SPACING_NM = (
+    TANAGER_WAVELENGTH_MAX_NM - TANAGER_WAVELENGTH_MIN_NM
+) / TANAGER_NUM_BANDS
 
 # ============================================================================
 # HDF5 PATH CONSTANTS
@@ -106,6 +108,17 @@ FWHM_ATTR_NAMES = [
     "band_widths",
 ]
 
+# Attribute names that declare a fill / no-data sentinel on the radiance
+# dataset. A declared fill value must never be scaled and passed to ISOFIT as
+# if it were real radiance.
+FILL_VALUE_ATTR_NAMES = [
+    "_FillValue",
+    "fill_value",
+    "missing_value",
+    "no_data_value",
+    "nodata",
+]
+
 # ============================================================================
 # ENVI FILE CONFIGURATION
 # ============================================================================
@@ -120,23 +133,23 @@ ENVI_OBSERVATION_FILENAME = "obs"
 
 # Observation file band definitions (10 bands as required by ISOFIT)
 OBS_BAND_NAMES = [
-    "path_length",        # Band 0: path length (km)
+    "path_length",  # Band 0: path length (km)
     "to_sensor_azimuth",  # Band 1: sensor azimuth (degrees)
-    "to_sensor_zenith",   # Band 2: sensor zenith (degrees)
-    "to_sun_azimuth",     # Band 3: solar azimuth (degrees)
-    "to_sun_zenith",      # Band 4: solar zenith (degrees)
-    "phase_angle",        # Band 5: phase angle (degrees)
-    "slope",              # Band 6: terrain slope (degrees)
-    "aspect",             # Band 7: terrain aspect (degrees)
-    "cosine_i",           # Band 8: cosine of illumination angle
-    "utc_time",           # Band 9: UTC time (decimal hours)
+    "to_sensor_zenith",  # Band 2: sensor zenith (degrees)
+    "to_sun_azimuth",  # Band 3: solar azimuth (degrees)
+    "to_sun_zenith",  # Band 4: solar zenith (degrees)
+    "phase_angle",  # Band 5: phase angle (degrees)
+    "slope",  # Band 6: terrain slope (degrees)
+    "aspect",  # Band 7: terrain aspect (degrees)
+    "cosine_i",  # Band 8: cosine of illumination angle
+    "utc_time",  # Band 9: UTC time (decimal hours)
 ]
 
 # Location file band definitions (3 bands)
 LOC_BAND_NAMES = [
-    "longitude",   # Band 0: longitude (degrees)
-    "latitude",    # Band 1: latitude (degrees)
-    "elevation",   # Band 2: elevation (meters)
+    "longitude",  # Band 0: longitude (degrees)
+    "latitude",  # Band 1: latitude (degrees)
+    "elevation",  # Band 2: elevation (meters)
 ]
 
 # ============================================================================
@@ -160,7 +173,9 @@ DEFAULT_SURFACE_MODEL = "multicomponent_surface"
 DEFAULT_SRTMNET_PATH = Path.home() / ".isofit" / "srtmnet" / "sRTMnet_v120.h5"
 
 # Default reflectance library for surface model generation
-DEFAULT_REFLECTANCE_LIBRARY = Path.home() / ".isofit" / "data" / "reflectance" / "surface_model_ucsb"
+DEFAULT_REFLECTANCE_LIBRARY = (
+    Path.home() / ".isofit" / "data" / "reflectance" / "surface_model_ucsb"
+)
 
 # Surface model configuration for auto-generation
 SURFACE_MODEL_CONFIG = {
@@ -172,7 +187,7 @@ SURFACE_MODEL_CONFIG = {
         {"interval": [1330, 1450], "regularizer": 10, "correlation": "decorrelated"},
         {"interval": [1450, 1800], "regularizer": 1e-6, "correlation": "EM"},
         {"interval": [1800, 1950], "regularizer": 10, "correlation": "decorrelated"},
-        {"interval": [1950, 2500], "regularizer": 1e-6, "correlation": "EM"}
+        {"interval": [1950, 2500], "regularizer": 1e-6, "correlation": "EM"},
     ],
 }
 
@@ -215,10 +230,9 @@ def get_default_wavelengths() -> list:
         List of wavelengths in nm from 400 to 2500 nm (426 bands).
     """
     import numpy as np
+
     return np.linspace(
-        TANAGER_WAVELENGTH_MIN_NM,
-        TANAGER_WAVELENGTH_MAX_NM,
-        TANAGER_NUM_BANDS
+        TANAGER_WAVELENGTH_MIN_NM, TANAGER_WAVELENGTH_MAX_NM, TANAGER_NUM_BANDS
     ).tolist()
 
 
@@ -229,7 +243,6 @@ def get_default_fwhm() -> list:
     Returns:
         List of FWHM values in nm (constant ~5nm spacing).
     """
-    import numpy as np
     # Approximate FWHM as slightly larger than band spacing
     fwhm_value = TANAGER_WAVELENGTH_SPACING_NM * 1.2
     return [fwhm_value] * TANAGER_NUM_BANDS

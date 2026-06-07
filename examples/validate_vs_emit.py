@@ -40,10 +40,10 @@ def search_and_validate(tanager_h5: str, output_dir: str, time_window: float = 2
 
     print(f"Found {len(granules)} EMIT granules:")
     for i, g in enumerate(granules):
-        print(f"  [{i+1}] {g['granule_id']}")
+        print(f"  [{i + 1}] {g['granule_id']}")
 
     # Download first granule
-    print(f"\nDownloading first EMIT granule...")
+    print("\nDownloading first EMIT granule...")
     emit_path = download_emit_l2a(granules[0], output_dir)
 
     if emit_path:
@@ -103,16 +103,17 @@ def main():
     parser.add_argument("--wavelengths", "-w", help="Wavelength file")
     parser.add_argument("--emit", "-e", help="EMIT NetCDF file")
     parser.add_argument(
-        "--search", action="store_true",
-        help="Search for coincident EMIT data"
+        "--search", action="store_true", help="Search for coincident EMIT data"
     )
     parser.add_argument(
-        "--time-window", "-t", type=float, default=24.0,
-        help="Search time window in hours"
+        "--time-window",
+        "-t",
+        type=float,
+        default=24.0,
+        help="Search time window in hours",
     )
     parser.add_argument(
-        "--output-dir", "-o", default="./validation",
-        help="Output directory"
+        "--output-dir", "-o", default="./validation", help="Output directory"
     )
 
     args = parser.parse_args()
@@ -122,9 +123,7 @@ def main():
 
     if args.search:
         # Search for and download EMIT data
-        emit_path = search_and_validate(
-            args.input, str(output_dir), args.time_window
-        )
+        emit_path = search_and_validate(args.input, str(output_dir), args.time_window)
         if not emit_path:
             print("No EMIT data available for validation")
             return

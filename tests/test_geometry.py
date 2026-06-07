@@ -2,7 +2,6 @@
 
 from datetime import datetime
 
-import pytest
 import numpy as np
 
 
@@ -114,8 +113,7 @@ class TestPhaseAngle:
         sensor_azimuth = 180.0
 
         phase = calculate_phase_angle(
-            solar_zenith, solar_azimuth,
-            sensor_zenith, sensor_azimuth
+            solar_zenith, solar_azimuth, sensor_zenith, sensor_azimuth
         )
 
         # Phase angle should be close to solar zenith for nadir viewing
@@ -131,8 +129,7 @@ class TestPhaseAngle:
         sensor_azimuth = np.array([180, 180, 180])
 
         phase = calculate_phase_angle(
-            solar_zenith, solar_azimuth,
-            sensor_zenith, sensor_azimuth
+            solar_zenith, solar_azimuth, sensor_zenith, sensor_azimuth
         )
 
         assert phase.shape == solar_zenith.shape
@@ -216,9 +213,7 @@ class TestObservationArray:
         lon = np.linspace(-120, -119, samples)[np.newaxis, :] * np.ones((lines, 1))
         acq_time = datetime(2025, 5, 11, 12, 0, 0)
 
-        obs = create_observation_array(
-            lines, samples, path_length, acq_time, lat, lon
-        )
+        obs = create_observation_array(lines, samples, path_length, acq_time, lat, lon)
 
         assert obs.shape == (lines, samples, 10)
 
@@ -232,9 +227,7 @@ class TestObservationArray:
         lon = np.full((lines, samples), -120.0)
         acq_time = datetime(2025, 5, 11, 12, 0, 0)
 
-        obs = create_observation_array(
-            lines, samples, path_length, acq_time, lat, lon
-        )
+        obs = create_observation_array(lines, samples, path_length, acq_time, lat, lon)
 
         # Band 0: path_length (km)
         assert np.allclose(obs[:, :, 0], 500.0)

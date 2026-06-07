@@ -2,7 +2,6 @@
 Utility functions for ENVI file I/O and file helpers.
 """
 
-import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Tuple, Union
 
@@ -10,8 +9,6 @@ import numpy as np
 
 from tanager_isofit.config import (
     ENVI_DTYPE_FLOAT32,
-    LOC_BAND_NAMES,
-    OBS_BAND_NAMES,
 )
 
 
@@ -55,8 +52,8 @@ def write_envi_header(
         f.write(f"samples = {samples}\n")
         f.write(f"lines = {lines}\n")
         f.write(f"bands = {bands}\n")
-        f.write(f"header offset = 0\n")
-        f.write(f"file type = ENVI Standard\n")
+        f.write("header offset = 0\n")
+        f.write("file type = ENVI Standard\n")
         f.write(f"data type = {dtype}\n")
         f.write(f"interleave = {interleave}\n")
         f.write(f"byte order = {byte_order}\n")
@@ -94,7 +91,7 @@ def write_envi_header(
 def _write_list_field(f, values: List, items_per_line: int = 10) -> None:
     """Helper to write a list field with proper formatting."""
     for i in range(0, len(values), items_per_line):
-        chunk = values[i:i + items_per_line]
+        chunk = values[i : i + items_per_line]
         line = ", ".join(f"{v:.6f}" if isinstance(v, float) else str(v) for v in chunk)
         if i + items_per_line < len(values):
             f.write(f"  {line},\n")
@@ -221,10 +218,10 @@ def read_envi_header(header_path: Union[str, Path]) -> Dict[str, Any]:
             # Find closing brace
             brace_end = content.find("}", i)
             if brace_end == -1:
-                value = content[i + 1:].strip()
+                value = content[i + 1 :].strip()
                 i = len(content)
             else:
-                value = content[i + 1:brace_end].strip()
+                value = content[i + 1 : brace_end].strip()
                 i = brace_end + 1
 
             # Parse list values
@@ -439,15 +436,21 @@ def validate_envi_files(
     if rad_dims != loc_dims:
         issues.append(f"Dimension mismatch: radiance {rad_dims} != location {loc_dims}")
     if rad_dims != obs_dims:
-        issues.append(f"Dimension mismatch: radiance {rad_dims} != observation {obs_dims}")
+        issues.append(
+            f"Dimension mismatch: radiance {rad_dims} != observation {obs_dims}"
+        )
 
     # Check location has 3 bands
     if info["location"]["bands"] != 3:
-        issues.append(f"Location file should have 3 bands, has {info['location']['bands']}")
+        issues.append(
+            f"Location file should have 3 bands, has {info['location']['bands']}"
+        )
 
     # Check observation has 10 bands
     if info["observation"]["bands"] != 10:
-        issues.append(f"Observation file should have 10 bands, has {info['observation']['bands']}")
+        issues.append(
+            f"Observation file should have 10 bands, has {info['observation']['bands']}"
+        )
 
     return {
         "valid": len(issues) == 0,

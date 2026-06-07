@@ -18,16 +18,11 @@ import h5py
 import numpy as np
 from pyproj import CRS, Transformer
 
-logger = logging.getLogger(__name__)
-
 from tanager_isofit.config import (
-    HDF5_RADIANCE_PATH,
-    HDF5_PATH_LENGTH_PATH,
-    HDF5_LATITUDE_PATH,
-    HDF5_LONGITUDE_PATH,
     HDF5_ALT_PATHS,
     WAVELENGTH_ATTR_NAMES,
     FWHM_ATTR_NAMES,
+    FILL_VALUE_ATTR_NAMES,
     ENVI_RADIANCE_FILENAME,
     ENVI_LOCATION_FILENAME,
     ENVI_OBSERVATION_FILENAME,
@@ -39,12 +34,18 @@ from tanager_isofit.config import (
     get_default_wavelengths,
     get_default_fwhm,
 )
-from tanager_isofit.utils import write_envi_file, ensure_directory, create_wavelength_file
+from tanager_isofit.utils import (
+    write_envi_file,
+    ensure_directory,
+    create_wavelength_file,
+)
 from tanager_isofit.geometry import (
     create_observation_array,
     parse_acquisition_time,
 )
 from tanager_isofit.dem import get_flat_terrain
+
+logger = logging.getLogger(__name__)
 
 
 def inspect_hdf5(path: Union[str, Path]) -> Dict[str, Any]:
@@ -66,6 +67,7 @@ def inspect_hdf5(path: Union[str, Path]) -> Dict[str, Any]:
     }
 
     with h5py.File(path, "r") as f:
+
         def visitor(name, obj):
             if isinstance(obj, h5py.Dataset):
                 ds_info = {
@@ -123,7 +125,9 @@ def _find_dataset(f: h5py.File, paths: List[str]) -> Optional[h5py.Dataset]:
     return None
 
 
-def _get_attribute(obj: Union[h5py.File, h5py.Dataset], names: List[str]) -> Optional[Any]:
+def _get_attribute(
+    obj: Union[h5py.File, h5py.Dataset], names: List[str]
+) -> Optional[Any]:
     """Try multiple attribute names to find a value."""
     for name in names:
         if name in obj.attrs:
@@ -160,16 +164,15 @@ def _generate_grids_latlon(
 
     # Parse required fields
     ul = re.search(
-        r'UpperLeftPointMtrs=\(\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)\s*\)',
-        metadata
+        r"UpperLeftPointMtrs=\(\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)\s*\)",
+        metadata,
     )
     lr = re.search(
-        r'LowerRightMtrs=\(\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)\s*\)',
-        metadata
+        r"LowerRightMtrs=\(\s*([+-]?\d+\.?\d*)\s*,\s*([+-]?\d+\.?\d*)\s*\)", metadata
     )
-    xdim = re.search(r'XDim=(\d+)', metadata)
-    ydim = re.search(r'YDim=(\d+)', metadata)
-    zone = re.search(r'ZoneCode=(-?\d+)', metadata)
+    xdim = re.search(r"XDim=(\d+)", metadata)
+    ydim = re.search(r"YDim=(\d+)", metadata)
+    zone = re.search(r"ZoneCode=(-?\d+)", metadata)
 
     if not all([ul, lr, xdim, ydim, zone]):
         raise ValueError(
@@ -185,7 +188,9 @@ def _generate_grids_latlon(
 
     # Validate UTM zone
     if utm_zone == 0 or abs(utm_zone) > 60:
-        raise ValueError(f"Invalid UTM zone: {utm_zone}. Must be 1-60 (negative for south)")
+        raise ValueError(
+            f"Invalid UTM zone: {utm_zone}. Must be 1-60 (negative for south)"
+        )
 
     # Generate UTM grid coordinates
     x_coords = np.linspace(ul_x, lr_x, cols)
@@ -197,9 +202,7 @@ def _generate_grids_latlon(
 
     # Transform UTM -> WGS84
     transformer = Transformer.from_crs(
-        CRS.from_epsg(epsg),
-        CRS.from_epsg(4326),
-        always_xy=True
+        CRS.from_epsg(epsg), CRS.from_epsg(4326), always_xy=True
     )
     longitude, latitude = transformer.transform(easting, northing)
 
@@ -255,15 +258,19 @@ def read_tanager_hdf5(
 
             # Also search in nested groups
             if radiance_ds is None:
+
                 def find_radiance(name, obj):
                     if isinstance(obj, h5py.Dataset) and "radiance" in name.lower():
                         return obj
+
                 result = None
+
                 def visitor(name, obj):
                     nonlocal result
                     if result is None and isinstance(obj, h5py.Dataset):
                         if "radiance" in name.lower():
                             result = obj
+
                 f.visititems(visitor)
                 radiance_ds = result
 
@@ -273,8 +280,22 @@ def read_tanager_hdf5(
         # Get full dimensions - handle both (bands, lines, samples) and (lines, samples, bands)
         full_shape = radiance_ds.shape
 
-        # Detect dimension order: Tanager uses (bands, lines, samples) where bands=426
-        if full_shape[0] == TANAGER_NUM_BANDS:
+        # Detect dimension order: Tanager uses (bands, lines, samples) where
+        # bands=426. Disambiguate by matching the band count against the band
+        # axis only. If both the first and last axes equal the band count, the
+        # order is genuinely ambiguous and silently guessing could transpose the
+        # cube, so raise instead.
+        first_is_bands = full_shape[0] == TANAGER_NUM_BANDS
+        last_is_bands = full_shape[2] == TANAGER_NUM_BANDS
+        if first_is_bands and last_is_bands:
+            raise ValueError(
+                f"Ambiguous radiance dimension order {full_shape} in {path}: "
+                f"both the first and last axes equal the band count "
+                f"({TANAGER_NUM_BANDS}). Cannot determine (bands, lines, samples) "
+                "vs (lines, samples, bands)."
+            )
+
+        if first_is_bands:
             # Shape is (bands, lines, samples) - need to transpose
             bands_first = True
             lines, samples = full_shape[1], full_shape[2]
@@ -300,6 +321,23 @@ def read_tanager_hdf5(
 
         radiance = radiance.astype(np.float32)
 
+        # Honor any declared fill / no-data sentinel BEFORE scaling so that fill
+        # pixels are never multiplied through and handed to ISOFIT as if they
+        # were real radiance. Matching pixels become NaN, which downstream
+        # consumers already treat as invalid. The sentinel comes from the file's
+        # own metadata; no value is invented.
+        fill_value = _get_attribute(radiance_ds, FILL_VALUE_ATTR_NAMES)
+        if fill_value is not None:
+            fill_value = float(np.asarray(fill_value).ravel()[0])
+            fill_mask = radiance == fill_value
+            n_fill = int(np.count_nonzero(fill_mask))
+            if n_fill > 0:
+                warnings.warn(
+                    f"Radiance contains {n_fill} fill pixels "
+                    f"(_FillValue={fill_value}); setting them to NaN."
+                )
+                radiance[fill_mask] = np.nan
+
         # Convert radiance units from Tanager (W/m²/sr/µm) to ISOFIT (µW/cm²/sr/nm)
         # This is a critical unit conversion - ISOFIT expects µW/cm²/sr/nm
         radiance = radiance * RADIANCE_CONVERSION_FACTOR
@@ -322,13 +360,16 @@ def read_tanager_hdf5(
 
             # If standard paths don't work, search for lat/lon
             if latitude_ds is None:
+
                 def find_dataset_by_name(target_name):
                     result = None
+
                     def visitor(name, obj):
                         nonlocal result
                         if result is None and isinstance(obj, h5py.Dataset):
                             if target_name in name.lower():
                                 result = obj
+
                     f.visititems(visitor)
                     return result
 
@@ -367,11 +408,16 @@ def read_tanager_hdf5(
             # Keep in METERS - ISOFIT expects meters and converts internally!
         else:
             # Estimate path length from satellite altitude (convert km to meters)
-            warnings.warn("Path length not found, using constant value from satellite altitude")
+            warnings.warn(
+                "Path length not found, using constant value from satellite altitude"
+            )
             current_lines = radiance.shape[0]
             current_samples = radiance.shape[1]
-            path_length = np.full((current_lines, current_samples),
-                                   TANAGER_ALTITUDE_KM * 1000.0, dtype=np.float32)  # km -> m
+            path_length = np.full(
+                (current_lines, current_samples),
+                TANAGER_ALTITUDE_KM * 1000.0,
+                dtype=np.float32,
+            )  # km -> m
 
         # Read sun/sensor geometry if available in HDF5
         sun_zenith_ds = _find_dataset(f, HDF5_ALT_PATHS.get("sun_zenith", []))
@@ -380,11 +426,17 @@ def read_tanager_hdf5(
         sensor_azimuth_ds = _find_dataset(f, HDF5_ALT_PATHS.get("sensor_azimuth", []))
 
         geometry_from_hdf5 = {}
-        for name, ds in [("sun_zenith", sun_zenith_ds), ("sun_azimuth", sun_azimuth_ds),
-                         ("sensor_zenith", sensor_zenith_ds), ("sensor_azimuth", sensor_azimuth_ds)]:
+        for name, ds in [
+            ("sun_zenith", sun_zenith_ds),
+            ("sun_azimuth", sun_azimuth_ds),
+            ("sensor_zenith", sensor_zenith_ds),
+            ("sensor_azimuth", sensor_azimuth_ds),
+        ]:
             if ds is not None:
                 if subset is not None:
-                    geometry_from_hdf5[name] = ds[row_start:row_end, col_start:col_end].astype(np.float32)
+                    geometry_from_hdf5[name] = ds[
+                        row_start:row_end, col_start:col_end
+                    ].astype(np.float32)
                 else:
                     geometry_from_hdf5[name] = ds[:].astype(np.float32)
 
@@ -396,7 +448,9 @@ def read_tanager_hdf5(
         if wavelengths is not None:
             wavelengths = list(wavelengths)
         else:
-            warnings.warn("Wavelengths not found in HDF5, using default Tanager wavelengths")
+            warnings.warn(
+                "Wavelengths not found in HDF5, using default Tanager wavelengths"
+            )
             wavelengths = get_default_wavelengths()
 
         # Get FWHM from attributes
@@ -410,14 +464,33 @@ def read_tanager_hdf5(
             warnings.warn("FWHM not found in HDF5, using default values")
             fwhm = get_default_fwhm()
 
+        # Guard against wavelength/FWHM vectors that do not match the radiance
+        # band count. A mismatch would silently misalign every band downstream
+        # (wrong wavelength labels in the ENVI header and the ISOFIT wavelength
+        # file), so fail closed rather than emit a corrupted cube.
+        n_bands = radiance.shape[2]
+        if len(wavelengths) != n_bands:
+            raise ValueError(
+                f"Wavelength count ({len(wavelengths)}) does not match radiance "
+                f"band count ({n_bands}) in {path}"
+            )
+        if len(fwhm) != n_bands:
+            raise ValueError(
+                f"FWHM count ({len(fwhm)}) does not match radiance band count "
+                f"({n_bands}) in {path}"
+            )
+
         # Get acquisition time from Time dataset, strip_id, or filename
         acquisition_time = None
 
         # Try to get time from the Time dataset (Unix timestamps)
-        time_ds = _find_dataset(f, [
-            "HDFEOS/SWATHS/HYP/Geolocation Fields/Time",
-            "Time",
-        ])
+        time_ds = _find_dataset(
+            f,
+            [
+                "HDFEOS/SWATHS/HYP/Geolocation Fields/Time",
+                "Time",
+            ],
+        )
         if time_ds is not None:
             try:
                 first_time = float(time_ds[0])
@@ -500,9 +573,15 @@ def _parse_time_from_filename(path: Path) -> datetime:
         except ValueError:
             pass
 
-    # Default to current time as fallback
-    warnings.warn(f"Could not parse acquisition time from {filename}, using current time")
-    return datetime.utcnow()
+    # No usable acquisition time anywhere (Time dataset, strip_id, or filename).
+    # Falling back to the wall clock would silently fabricate the value that
+    # drives the output filename prefix and the observation UTC-time band,
+    # making the conversion nonreproducible. Fail closed instead.
+    raise ValueError(
+        f"Could not determine acquisition time for {path}. Expected a "
+        "'YYYYMMDD_HHMMSS_...' filename, a parseable strip_id, or a Time "
+        "dataset. Rename the file or supply valid metadata."
+    )
 
 
 def _create_observation_array_from_hdf5(
@@ -559,7 +638,9 @@ def _create_observation_array_from_hdf5(
     # Band 5: Phase angle (degrees)
     sensor_zenith = geometry.get("sensor_zenith", np.zeros((lines, samples)))
     sensor_azimuth = geometry.get("sensor_azimuth", np.zeros((lines, samples)))
-    phase_angle = calculate_phase_angle(sun_zenith, sun_azimuth, sensor_zenith, sensor_azimuth)
+    phase_angle = calculate_phase_angle(
+        sun_zenith, sun_azimuth, sensor_zenith, sensor_azimuth
+    )
     obs[:, :, 5] = phase_angle
 
     # Band 6: Slope (degrees)
@@ -755,7 +836,9 @@ def validate_hdf5_structure(path: Union[str, Path]) -> Tuple[bool, List[str]]:
             is_grids = "HDFEOS/GRIDS" in f
 
             if not is_swaths and not is_grids:
-                return False, ["Cannot determine format: expected SWATHS or GRIDS structure"]
+                return False, [
+                    "Cannot determine format: expected SWATHS or GRIDS structure"
+                ]
 
             # Check for radiance (required for both formats)
             radiance_ds = _find_dataset(f, HDF5_ALT_PATHS["radiance"])
@@ -763,7 +846,9 @@ def validate_hdf5_structure(path: Union[str, Path]) -> Tuple[bool, List[str]]:
                 issues.append("Missing radiance dataset")
             else:
                 if len(radiance_ds.shape) != 3:
-                    issues.append(f"Radiance should be 3D, got {len(radiance_ds.shape)}D")
+                    issues.append(
+                        f"Radiance should be 3D, got {len(radiance_ds.shape)}D"
+                    )
                 else:
                     # Handle both (bands, lines, samples) and (lines, samples, bands)
                     if radiance_ds.shape[0] == TANAGER_NUM_BANDS:
@@ -771,7 +856,9 @@ def validate_hdf5_structure(path: Union[str, Path]) -> Tuple[bool, List[str]]:
                     else:
                         n_bands = radiance_ds.shape[2]
                     if n_bands != TANAGER_NUM_BANDS:
-                        issues.append(f"Expected {TANAGER_NUM_BANDS} bands, got {n_bands}")
+                        issues.append(
+                            f"Expected {TANAGER_NUM_BANDS} bands, got {n_bands}"
+                        )
 
             # Format-specific checks
             if is_swaths:

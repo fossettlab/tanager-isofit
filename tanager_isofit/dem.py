@@ -85,8 +85,10 @@ def get_elevation_from_dem(
                 lon = longitude[i, j]
 
                 # Check if point is within DEM bounds
-                if (dem_bounds[0] <= lon <= dem_bounds[2] and
-                    dem_bounds[1] <= lat <= dem_bounds[3]):
+                if (
+                    dem_bounds[0] <= lon <= dem_bounds[2]
+                    and dem_bounds[1] <= lat <= dem_bounds[3]
+                ):
                     # Sample DEM at this location
                     try:
                         val = dem.sel(x=lon, y=lat, method="nearest").values

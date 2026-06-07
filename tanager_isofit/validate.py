@@ -57,7 +57,7 @@ def find_coincident_emit(
         tanager_bounds["max_lat"],
     )
 
-    print(f"Searching for EMIT data...")
+    print("Searching for EMIT data...")
     print(f"  Bounding box: {bbox}")
     print(f"  Time range: {start_time} to {end_time}")
 
@@ -77,12 +77,14 @@ def find_coincident_emit(
         try:
             granule_info = {
                 "granule_id": result.get("meta", {}).get("native-id", "unknown"),
-                "time_start": result.get("umm", {}).get("TemporalExtent", {}).get(
-                    "RangeDateTime", {}
-                ).get("BeginningDateTime"),
-                "time_end": result.get("umm", {}).get("TemporalExtent", {}).get(
-                    "RangeDateTime", {}
-                ).get("EndingDateTime"),
+                "time_start": result.get("umm", {})
+                .get("TemporalExtent", {})
+                .get("RangeDateTime", {})
+                .get("BeginningDateTime"),
+                "time_end": result.get("umm", {})
+                .get("TemporalExtent", {})
+                .get("RangeDateTime", {})
+                .get("EndingDateTime"),
                 "download_links": earthaccess.results.DataGranule(result).data_links(),
             }
             granules.append(granule_info)
@@ -134,7 +136,11 @@ def download_emit_l2a(
 
         downloaded = earthaccess.download(links[0], str(output_dir))
         if downloaded:
-            return Path(downloaded[0]) if isinstance(downloaded, list) else Path(downloaded)
+            return (
+                Path(downloaded[0])
+                if isinstance(downloaded, list)
+                else Path(downloaded)
+            )
     except Exception as e:
         warnings.warn(f"Download failed: {e}")
 
@@ -247,8 +253,8 @@ def compute_spectral_angle(
     Returns:
         Spectral angle in degrees
     """
-    # Remove NaN values
-    valid = ~(np.isnan(spectrum1) | np.isnan(spectrum2))
+    # Keep only finite values (drops NaN and +/-inf, e.g. from resampling).
+    valid = np.isfinite(spectrum1) & np.isfinite(spectrum2)
     s1 = spectrum1[valid]
     s2 = spectrum2[valid]
 
@@ -304,21 +310,22 @@ def compare_reflectance(
     tanager_flat = tanager_data[mask]
     emit_flat = emit_resampled[mask]
 
-    # Overall statistics
-    valid = ~(np.isnan(tanager_flat) | np.isnan(emit_flat))
+    # Overall statistics. Use isfinite so infinities (e.g. from resampling out
+    # of range or divide-by-zero upstream) cannot corrupt RMSE/correlation.
+    valid = np.isfinite(tanager_flat) & np.isfinite(emit_flat)
     valid_tanager = tanager_flat[valid]
     valid_emit = emit_flat[valid]
 
     if len(valid_tanager) > 0:
         diff = valid_tanager - valid_emit
 
-        results["overall"]["rmse"] = float(np.sqrt(np.mean(diff ** 2)))
+        results["overall"]["rmse"] = float(np.sqrt(np.mean(diff**2)))
         results["overall"]["mae"] = float(np.mean(np.abs(diff)))
         results["overall"]["bias"] = float(np.mean(diff))
         results["overall"]["n_pixels"] = int(np.sum(mask))
-        results["overall"]["correlation"] = float(np.corrcoef(
-            valid_tanager.ravel(), valid_emit.ravel()
-        )[0, 1])
+        results["overall"]["correlation"] = float(
+            np.corrcoef(valid_tanager.ravel(), valid_emit.ravel())[0, 1]
+        )
 
     # Per-band statistics
     n_bands = tanager_data.shape[-1]
@@ -330,7 +337,7 @@ def compare_reflectance(
         tanager_band = tanager_data[:, :, b][mask]
         emit_band = emit_resampled[:, :, b][mask]
 
-        valid = ~(np.isnan(tanager_band) | np.isnan(emit_band))
+        valid = np.isfinite(tanager_band) & np.isfinite(emit_band)
         if np.sum(valid) > 0:
             t = tanager_band[valid]
             e = emit_band[valid]
@@ -394,9 +401,10 @@ def identify_water_pixels(
     with np.errstate(divide="ignore", invalid="ignore"):
         ndwi = (green - nir) / (green + nir)
 
-    # Create mask
+    # Create mask. Require finite NDWI so divide-by-zero (green + nir == 0)
+    # producing +/-inf or NaN cannot be misclassified as water.
     water_mask = ndwi >= ndwi_threshold
-    water_mask &= ~np.isnan(ndwi)
+    water_mask &= np.isfinite(ndwi)
 
     return water_mask
 
@@ -464,10 +472,14 @@ def validate_water_spectrum(
         results["issues"].append(f"NIR reflectance too high for water: {nir_refl:.3f}")
 
     if swir_refl > 0.05:
-        results["issues"].append(f"SWIR reflectance too high for water: {swir_refl:.3f}")
+        results["issues"].append(
+            f"SWIR reflectance too high for water: {swir_refl:.3f}"
+        )
 
     if blue_refl < nir_refl:
-        results["issues"].append("Blue reflectance lower than NIR (unexpected for water)")
+        results["issues"].append(
+            "Blue reflectance lower than NIR (unexpected for water)"
+        )
 
     if results["issues"]:
         results["valid"] = False
@@ -551,21 +563,21 @@ def generate_validation_report(
 
     html += f"""<tr>
         <td class="metric">MAE</td>
-        <td>{overall.get('mae', float('nan')):.4f}</td>
+        <td>{overall.get("mae", float("nan")):.4f}</td>
         <td>-</td>
         <td>-</td>
     </tr>\n"""
 
     html += f"""<tr>
         <td class="metric">Bias</td>
-        <td>{overall.get('bias', float('nan')):.4f}</td>
+        <td>{overall.get("bias", float("nan")):.4f}</td>
         <td>-</td>
         <td>-</td>
     </tr>\n"""
 
     html += f"""<tr>
         <td class="metric">N Pixels</td>
-        <td>{overall.get('n_pixels', 0)}</td>
+        <td>{overall.get("n_pixels", 0)}</td>
         <td>-</td>
         <td>-</td>
     </tr>\n"""
@@ -627,8 +639,16 @@ def run_full_validation(
     print("Reading Tanager reflectance...")
     tanager_data, tanager_header = read_envi_file(tanager_reflectance_path)
 
-    # Read wavelengths
-    tanager_wavelengths = np.loadtxt(tanager_wavelength_file)[:, 0]
+    # Read wavelengths. create_wavelength_file writes 3 columns:
+    # channel index, wavelength (nm), fwhm (nm). Column 1 is the wavelength.
+    wavelength_table = np.loadtxt(tanager_wavelength_file)
+    if wavelength_table.ndim != 2 or wavelength_table.shape[1] < 3:
+        raise ValueError(
+            f"Wavelength file {tanager_wavelength_file} must have 3 columns "
+            "(channel, wavelength, fwhm); got shape "
+            f"{wavelength_table.shape}"
+        )
+    tanager_wavelengths = wavelength_table[:, 1]
 
     # Read EMIT data
     print("Reading EMIT reflectance...")
@@ -640,15 +660,16 @@ def run_full_validation(
     # Compare reflectance
     print("Comparing reflectance...")
     comparison = compare_reflectance(
-        tanager_data, tanager_wavelengths,
-        emit_data, emit_wavelengths
+        tanager_data, tanager_wavelengths, emit_data, emit_wavelengths
     )
     results["comparison"] = comparison
 
     # Identify and validate water pixels
     print("Validating water pixels...")
     water_mask = identify_water_pixels(tanager_data, tanager_wavelengths)
-    water_validation = validate_water_spectrum(tanager_data, tanager_wavelengths, water_mask)
+    water_validation = validate_water_spectrum(
+        tanager_data, tanager_wavelengths, water_mask
+    )
     results["water_validation"] = water_validation
 
     # Generate report

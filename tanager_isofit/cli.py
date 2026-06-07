@@ -56,10 +56,18 @@ def inspect(input_h5: str):
 @main.command()
 @click.argument("input_h5", type=click.Path(exists=True))
 @click.argument("output_dir", type=click.Path())
-@click.option("--subset", "-s", type=str, default=None,
-              help="Subset as 'row_start,row_end,col_start,col_end'")
-@click.option("--fast-solar/--no-fast-solar", default=True,
-              help="Use fast grid-interpolated solar geometry")
+@click.option(
+    "--subset",
+    "-s",
+    type=str,
+    default=None,
+    help="Subset as 'row_start,row_end,col_start,col_end'",
+)
+@click.option(
+    "--fast-solar/--no-fast-solar",
+    default=True,
+    help="Use fast grid-interpolated solar geometry",
+)
 def convert(input_h5: str, output_dir: str, subset: Optional[str], fast_solar: bool):
     """
     Convert HDF5 to ENVI format (no ISOFIT).
@@ -102,20 +110,39 @@ def convert(input_h5: str, output_dir: str, subset: Optional[str], fast_solar: b
 @main.command()
 @click.argument("input_h5", type=click.Path(exists=True))
 @click.argument("output_dir", type=click.Path())
-@click.option("--n-cores", "-n", type=int, default=4,
-              help="Number of CPU cores for ISOFIT")
-@click.option("--empirical-line/--no-empirical-line", default=True,
-              help="Use empirical line correction")
-@click.option("--subset", "-s", type=str, default=None,
-              help="Subset as 'row_start,row_end,col_start,col_end'")
-@click.option("--skip-isofit", is_flag=True,
-              help="Only convert, skip ISOFIT processing")
-@click.option("--sensor", type=str, default="tanager",
-              help="ISOFIT sensor configuration name")
-@click.option("--surface-path", type=click.Path(), default=None,
-              help="Path to surface model file (.mat). Auto-generates if not provided.")
-@click.option("--emulator-base", type=click.Path(), default="auto",
-              help="Path to sRTMnet emulator .h5 file. 'auto' uses default location, 'none' uses MODTRAN")
+@click.option(
+    "--n-cores", "-n", type=int, default=4, help="Number of CPU cores for ISOFIT"
+)
+@click.option(
+    "--empirical-line/--no-empirical-line",
+    default=True,
+    help="Use empirical line correction",
+)
+@click.option(
+    "--subset",
+    "-s",
+    type=str,
+    default=None,
+    help="Subset as 'row_start,row_end,col_start,col_end'",
+)
+@click.option(
+    "--skip-isofit", is_flag=True, help="Only convert, skip ISOFIT processing"
+)
+@click.option(
+    "--sensor", type=str, default="tanager", help="ISOFIT sensor configuration name"
+)
+@click.option(
+    "--surface-path",
+    type=click.Path(),
+    default=None,
+    help="Path to surface model file (.mat). Auto-generates if not provided.",
+)
+@click.option(
+    "--emulator-base",
+    type=click.Path(),
+    default="auto",
+    help="Path to sRTMnet emulator .h5 file. 'auto' uses default location, 'none' uses MODTRAN",
+)
 def process(
     input_h5: str,
     output_dir: str,
@@ -170,7 +197,9 @@ def process(
             for key, path in result["isofit_outputs"].items():
                 click.echo(f"    {key}: {path}")
         elif result.get("isofit_error"):
-            click.echo(click.style(f"  ISOFIT error: {result['isofit_error']}", fg="yellow"))
+            click.echo(
+                click.style(f"  ISOFIT error: {result['isofit_error']}", fg="yellow")
+            )
 
     except Exception as e:
         click.echo(click.style(f"\n✗ Pipeline failed: {e}", fg="red"), err=True)
@@ -179,8 +208,13 @@ def process(
 
 @main.command("find-emit")
 @click.argument("input_h5", type=click.Path(exists=True))
-@click.option("--time-window", "-t", type=float, default=24.0,
-              help="Search window in hours (+/- from acquisition)")
+@click.option(
+    "--time-window",
+    "-t",
+    type=float,
+    default=24.0,
+    help="Search window in hours (+/- from acquisition)",
+)
 def find_emit(input_h5: str, time_window: float):
     """
     Search for coincident EMIT data.
@@ -197,7 +231,7 @@ def find_emit(input_h5: str, time_window: float):
         bounds = get_scene_bounds(input_path)
         acq_time = get_acquisition_time(input_path)
 
-        click.echo(f"\nTanager scene info:")
+        click.echo("\nTanager scene info:")
         click.echo(f"  Time: {acq_time}")
         click.echo(f"  Bounds: {bounds}")
 
@@ -207,9 +241,11 @@ def find_emit(input_h5: str, time_window: float):
         if not granules:
             click.echo(click.style("\nNo coincident EMIT data found", fg="yellow"))
         else:
-            click.echo(click.style(f"\n✓ Found {len(granules)} EMIT granules:", fg="green"))
+            click.echo(
+                click.style(f"\n✓ Found {len(granules)} EMIT granules:", fg="green")
+            )
             for i, g in enumerate(granules):
-                click.echo(f"\n  [{i+1}] {g['granule_id']}")
+                click.echo(f"\n  [{i + 1}] {g['granule_id']}")
                 click.echo(f"      Time: {g['time_start']} - {g['time_end']}")
 
     except Exception as e:
@@ -220,11 +256,22 @@ def find_emit(input_h5: str, time_window: float):
 @main.command()
 @click.argument("tanager_refl", type=click.Path(exists=True))
 @click.argument("emit_path", type=click.Path(exists=True))
-@click.option("--output", "-o", type=click.Path(), default="validation_report.html",
-              help="Output report path")
-@click.option("--wavelength-file", "-w", type=click.Path(exists=True),
-              help="Tanager wavelength file")
-def validate(tanager_refl: str, emit_path: str, output: str, wavelength_file: Optional[str]):
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(),
+    default="validation_report.html",
+    help="Output report path",
+)
+@click.option(
+    "--wavelength-file",
+    "-w",
+    type=click.Path(exists=True),
+    help="Tanager wavelength file",
+)
+def validate(
+    tanager_refl: str, emit_path: str, output: str, wavelength_file: Optional[str]
+):
     """
     Validate Tanager reflectance against EMIT L2A.
 
@@ -245,7 +292,10 @@ def validate(tanager_refl: str, emit_path: str, output: str, wavelength_file: Op
                 break
 
         if wavelength_file is None:
-            click.echo("Error: Could not find wavelength file. Use --wavelength-file option.", err=True)
+            click.echo(
+                "Error: Could not find wavelength file. Use --wavelength-file option.",
+                err=True,
+            )
             sys.exit(1)
 
     output_dir = Path(output).parent or Path(".")
@@ -275,7 +325,9 @@ def validate(tanager_refl: str, emit_path: str, output: str, wavelength_file: Op
 
         click.echo(f"  {rmse_status} RMSE: {rmse:.4f}")
         click.echo(f"  {corr_status} Correlation: {corr:.4f}")
-        click.echo(f"  {water_status} Water validation: {'pass' if summary.get('water_valid') else 'fail'}")
+        click.echo(
+            f"  {water_status} Water validation: {'pass' if summary.get('water_valid') else 'fail'}"
+        )
         click.echo(f"\n  Report: {result.get('report_path')}")
 
     except Exception as e:
@@ -315,7 +367,7 @@ def check(envi_file: str):
         # Read data and compute stats
         data, _ = read_envi_file(envi_path)
 
-        click.echo(f"\nStatistics:")
+        click.echo("\nStatistics:")
         click.echo(f"  Min: {np.nanmin(data):.6f}")
         click.echo(f"  Max: {np.nanmax(data):.6f}")
         click.echo(f"  Mean: {np.nanmean(data):.6f}")
@@ -339,7 +391,10 @@ def check_deps():
 
     Verifies ISOFIT, sRTMnet emulator, and reflectance library are available.
     """
-    from tanager_isofit.isofit_runner import check_isofit_available, check_isofit_data_available
+    from tanager_isofit.isofit_runner import (
+        check_isofit_available,
+        check_isofit_data_available,
+    )
     from tanager_isofit.config import DEFAULT_SRTMNET_PATH, DEFAULT_REFLECTANCE_LIBRARY
 
     all_ok = True

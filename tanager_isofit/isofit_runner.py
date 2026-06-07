@@ -14,9 +14,6 @@ from tanager_isofit.config import (
     ISOFIT_FALLBACK_SENSORS,
     DEFAULT_N_CORES,
     ISOFIT_WORKING_DIR_NAME,
-    ENVI_RADIANCE_FILENAME,
-    ENVI_LOCATION_FILENAME,
-    ENVI_OBSERVATION_FILENAME,
     DEFAULT_SRTMNET_PATH,
     DEFAULT_REFLECTANCE_LIBRARY,
     SURFACE_MODEL_CONFIG,
@@ -33,7 +30,8 @@ def check_isofit_available() -> bool:
         True if ISOFIT can be imported
     """
     try:
-        from isofit.utils import apply_oe
+        from isofit.utils import apply_oe  # noqa: F401  (import itself is the availability probe)
+
         return True
     except ImportError:
         return False
@@ -48,7 +46,8 @@ def get_available_sensors() -> list:
     """
     try:
         from isofit.configs import configs
-        return list(configs.keys()) if hasattr(configs, 'keys') else []
+
+        return list(configs.keys()) if hasattr(configs, "keys") else []
     except ImportError:
         return []
 
@@ -131,14 +130,12 @@ def generate_surface_model(
     }
 
     # Write config to temp file
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(config, f, indent=2)
         config_path = f.name
 
     try:
-        print(f"Generating surface model...")
+        print("Generating surface model...")
         print(f"  Wavelength file: {wavelength_file}")
         print(f"  Reflectance library: {reflectance_library}")
         print(f"  Output: {output_path}")
@@ -170,7 +167,7 @@ def generate_surface_model(
                 f"stderr: {result.stderr}"
             )
 
-        print(f"  Surface model generated successfully")
+        print("  Surface model generated successfully")
         return output_path
 
     finally:
@@ -213,9 +210,7 @@ def run_isofit(
         Dictionary with paths to output files
     """
     if not check_isofit_available():
-        raise ImportError(
-            "ISOFIT is not installed. Install with: pip install isofit"
-        )
+        raise ImportError("ISOFIT is not installed. Install with: pip install isofit")
 
     from isofit.utils import apply_oe
 
@@ -249,9 +244,7 @@ def run_isofit(
         # Try fallback sensors
         for fallback in ISOFIT_FALLBACK_SENSORS:
             if fallback in available_sensors:
-                warnings.warn(
-                    f"Sensor '{sensor}' not found, using '{fallback}' config"
-                )
+                warnings.warn(f"Sensor '{sensor}' not found, using '{fallback}' config")
                 sensor = fallback
                 break
         else:
@@ -265,7 +258,7 @@ def run_isofit(
         # Use default sRTMnet location
         if DEFAULT_SRTMNET_PATH.exists():
             resolved_emulator = DEFAULT_SRTMNET_PATH
-            print(f"Using sRTMnet emulator (auto-detected)")
+            print("Using sRTMnet emulator (auto-detected)")
         else:
             warnings.warn(
                 f"sRTMnet not found at {DEFAULT_SRTMNET_PATH}. "
@@ -276,9 +269,9 @@ def run_isofit(
         resolved_emulator = Path(emulator_base)
         if not resolved_emulator.exists():
             raise FileNotFoundError(f"Emulator not found: {resolved_emulator}")
-        print(f"Using sRTMnet emulator (user-specified)")
+        print("Using sRTMnet emulator (user-specified)")
 
-    print(f"Running ISOFIT atmospheric correction...")
+    print("Running ISOFIT atmospheric correction...")
     print(f"  Sensor: {sensor}")
     print(f"  Cores: {n_cores}")
     print(f"  Empirical line: {empirical_line}")
@@ -286,7 +279,7 @@ def run_isofit(
     if resolved_emulator:
         print(f"  Emulator: {resolved_emulator}")
     else:
-        print(f"  Emulator: MODTRAN (requires separate installation)")
+        print("  Emulator: MODTRAN (requires separate installation)")
 
     # Build apply_oe arguments
     oe_args = {
@@ -406,13 +399,12 @@ def run_isofit_pipeline(
     }
 
     # Step 1: Convert HDF5 to ENVI
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Step 1: Converting HDF5 to ENVI format")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     convert_kwargs = {
-        k: v for k, v in kwargs.items()
-        if k in ["use_fast_solar", "dem_path"]
+        k: v for k, v in kwargs.items() if k in ["use_fast_solar", "dem_path"]
     }
 
     envi_files = convert_tanager_to_envi(
@@ -430,9 +422,9 @@ def run_isofit_pipeline(
         return results
 
     # Step 2: Run ISOFIT
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Step 2: Running ISOFIT atmospheric correction")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not check_isofit_available():
         warnings.warn("ISOFIT not available, skipping atmospheric correction")
@@ -442,8 +434,7 @@ def run_isofit_pipeline(
     isofit_working = output_dir / ISOFIT_WORKING_DIR_NAME
 
     isofit_kwargs = {
-        k: v for k, v in kwargs.items()
-        if k not in ["use_fast_solar", "dem_path"]
+        k: v for k, v in kwargs.items() if k not in ["use_fast_solar", "dem_path"]
     }
 
     try:
@@ -465,9 +456,9 @@ def run_isofit_pipeline(
         results["isofit_outputs"] = None
         results["isofit_error"] = str(e)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Pipeline complete")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Output directory: {output_dir}")
 
     return results
@@ -540,9 +531,7 @@ def validate_reflectance_output(
     # Check NaN fraction
     nan_frac = results["stats"]["nan_fraction"]
     if nan_frac > 0.5:
-        results["issues"].append(
-            f"High NaN fraction: {nan_frac:.2%}"
-        )
+        results["issues"].append(f"High NaN fraction: {nan_frac:.2%}")
         results["valid"] = False
 
     if results["issues"]:

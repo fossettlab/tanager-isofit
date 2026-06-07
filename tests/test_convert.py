@@ -1,8 +1,6 @@
 """Tests for HDF5 to ENVI conversion module."""
 
-import tempfile
 from pathlib import Path
-from datetime import datetime
 
 import pytest
 import numpy as np
@@ -275,10 +273,10 @@ def real_hdf5():
     Default: ~/tanager-isofit-testdata/
     """
     import os
-    test_dir = Path(os.environ.get(
-        "TANAGER_TEST_DATA_DIR",
-        Path.home() / "tanager-isofit-testdata"
-    ))
+
+    test_dir = Path(
+        os.environ.get("TANAGER_TEST_DATA_DIR", Path.home() / "tanager-isofit-testdata")
+    )
     test_path = test_dir / "20250511_074311_00_4001_basic_radiance.h5"
     if test_path.exists():
         return test_path
@@ -289,6 +287,7 @@ def real_hdf5():
 
 
 # GRIDS Format Tests
+
 
 class TestGRIDSFormat:
     """Tests for GRIDS format (ortho_radiance) support."""
@@ -333,11 +332,16 @@ class TestGRIDSFormat:
             with pytest.raises(ValueError, match="Invalid UTM zone"):
                 _generate_grids_latlon(f)
 
-    @pytest.mark.parametrize("utm_zone,expected_south", [
-        (33, False),   # Northern hemisphere
-        (-33, True),   # Southern hemisphere
-    ])
-    def test_generate_grids_latlon_hemispheres(self, tmp_path, utm_zone, expected_south):
+    @pytest.mark.parametrize(
+        "utm_zone,expected_south",
+        [
+            (33, False),  # Northern hemisphere
+            (-33, True),  # Southern hemisphere
+        ],
+    )
+    def test_generate_grids_latlon_hemispheres(
+        self, tmp_path, utm_zone, expected_south
+    ):
         """Test both hemispheres produce correct latitude signs."""
         from tanager_isofit.convert import _generate_grids_latlon
 

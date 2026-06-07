@@ -1,6 +1,5 @@
 """Tests for validation and EMIT comparison module."""
 
-import pytest
 import numpy as np
 
 

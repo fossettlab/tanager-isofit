@@ -12,7 +12,6 @@ Usage:
 """
 
 import argparse
-from pathlib import Path
 
 
 def main():
@@ -22,16 +21,17 @@ def main():
     parser.add_argument("input_h5", help="Input Tanager HDF5 file")
     parser.add_argument("output_dir", help="Output directory")
     parser.add_argument(
-        "--subset", "-s", type=str, default=None,
-        help="Subset as 'row_start,row_end,col_start,col_end'"
+        "--subset",
+        "-s",
+        type=str,
+        default=None,
+        help="Subset as 'row_start,row_end,col_start,col_end'",
     )
     parser.add_argument(
-        "--n-cores", "-n", type=int, default=4,
-        help="Number of CPU cores"
+        "--n-cores", "-n", type=int, default=4, help="Number of CPU cores"
     )
     parser.add_argument(
-        "--skip-isofit", action="store_true",
-        help="Only convert, skip ISOFIT"
+        "--skip-isofit", action="store_true", help="Only convert, skip ISOFIT"
     )
 
     args = parser.parse_args()
@@ -50,9 +50,9 @@ def main():
             print("Warning: Invalid subset format, ignoring")
 
     # Run pipeline
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Tanager ISOFIT Pipeline")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Input: {args.input_h5}")
     print(f"Output: {args.output_dir}")
     if subset:
@@ -84,9 +84,9 @@ def main():
                 print(f"    - {issue}")
 
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("Summary")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"ENVI files: {envi_files.get('radiance', 'N/A')}")
 
     if results.get("isofit_outputs"):

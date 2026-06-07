@@ -31,7 +31,9 @@ def calculate_solar_geometry(
 
     # Parse time if string
     if isinstance(acquisition_time, str):
-        acquisition_time = datetime.fromisoformat(acquisition_time.replace("Z", "+00:00"))
+        acquisition_time = datetime.fromisoformat(
+            acquisition_time.replace("Z", "+00:00")
+        )
 
     # Convert to pandas timestamp for pvlib
     times = pd.DatetimeIndex([acquisition_time], tz="UTC")
@@ -68,6 +70,12 @@ def calculate_solar_geometry(
             )
             solar_zenith[:] = solar_pos["zenith"].values[0]
             solar_azimuth[:] = solar_pos["azimuth"].values[0]
+            # Do not fabricate angles for pixels with missing geolocation:
+            # keep NaN where lat/lon is NaN rather than assigning the scene
+            # center value.
+            invalid = np.isnan(lat_flat) | np.isnan(lon_flat)
+            solar_zenith[invalid] = np.nan
+            solar_azimuth[invalid] = np.nan
         else:
             # Compute per-pixel for smaller arrays
             for i, (lat, lon) in enumerate(zip(lat_flat, lon_flat)):
@@ -118,7 +126,9 @@ def calculate_solar_geometry_fast(
 
     # Parse time if string
     if isinstance(acquisition_time, str):
-        acquisition_time = datetime.fromisoformat(acquisition_time.replace("Z", "+00:00"))
+        acquisition_time = datetime.fromisoformat(
+            acquisition_time.replace("Z", "+00:00")
+        )
 
     times = pd.DatetimeIndex([acquisition_time], tz="UTC")
 
@@ -237,10 +247,7 @@ def calculate_phase_angle(
     va = np.radians(sensor_azimuth)
 
     # Spherical law of cosines
-    cos_phase = (
-        np.cos(sz) * np.cos(vz) +
-        np.sin(sz) * np.sin(vz) * np.cos(sa - va)
-    )
+    cos_phase = np.cos(sz) * np.cos(vz) + np.sin(sz) * np.sin(vz) * np.cos(sa - va)
 
     # Clamp to valid range for arccos
     cos_phase = np.clip(cos_phase, -1, 1)
@@ -291,10 +298,7 @@ def calculate_cosine_i(
     asp = np.radians(aspect)
 
     # Full cosine_i formula
-    cosine_i = (
-        np.cos(sz) * np.cos(sl) +
-        np.sin(sz) * np.sin(sl) * np.cos(sa - asp)
-    )
+    cosine_i = np.cos(sz) * np.cos(sl) + np.sin(sz) * np.sin(sl) * np.cos(sa - asp)
 
     return cosine_i
 
@@ -428,7 +432,9 @@ def create_observation_array(
     """
     # Parse acquisition time
     if isinstance(acquisition_time, str):
-        acquisition_time = datetime.fromisoformat(acquisition_time.replace("Z", "+00:00"))
+        acquisition_time = datetime.fromisoformat(
+            acquisition_time.replace("Z", "+00:00")
+        )
 
     # Initialize output array
     obs = np.zeros((lines, samples, 10), dtype=np.float32)
