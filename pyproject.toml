@@ -66,9 +66,9 @@ all = [
 tanager-isofit = "tanager_isofit.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/alexkbradley/tanager-isofit"
-Repository = "https://github.com/alexkbradley/tanager-isofit"
-Issues = "https://github.com/alexkbradley/tanager-isofit/issues"
+Homepage = "https://github.com/bradleylab/tanager-isofit"
+Repository = "https://github.com/bradleylab/tanager-isofit"
+Issues = "https://github.com/bradleylab/tanager-isofit/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

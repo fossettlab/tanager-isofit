@@ -190,3 +190,12 @@ SPEC.md
 test_output*/
 test_isofit_named/
 plans/
+
+# Internal working notes — not part of the public release
+CLAUDE.md
+spec.md
+HANDOFF.md
+plans/
+.claude/
+.serena/
+.claude-profile.md

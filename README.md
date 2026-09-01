@@ -16,10 +16,6 @@ Convert Planet Tanager hyperspectral HDF5 data (TOA radiance) to surface reflect
 ### Basic installation
 
 ```bash
-# From PyPI (when available)
-pip install tanager-isofit
-
-# Or from source
 git clone https://github.com/bradleylab/tanager-isofit.git
 cd tanager-isofit
 pip install -e .
